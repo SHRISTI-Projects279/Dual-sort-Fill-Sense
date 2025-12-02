@@ -97,3 +97,104 @@ Ultrasonic sensor (top) → Microcontroller → Fill‑percentage calculation �
 4. Drop multiple items and observe automatic routing and fill‑level indication.  
 
 
+## CODE:
+#include <ESP32Servo.h>  // Make sure this library is added in Wokwi
+
+// Ultrasonic pins
+#define TRIG_WET 5
+#define ECHO_WET 18
+#define TRIG_DRY 19
+#define ECHO_DRY 21
+
+// LED pins
+#define LED_WET_GREEN 12
+#define LED_WET_RED 14
+#define LED_DRY_GREEN 27
+#define LED_DRY_RED 26
+
+// Moisture sensor + Servo
+#define MOISTURE_PIN 34
+#define SERVO_PIN 25
+
+Servo flap;
+int moistureValue;
+int threshold = 500;  // Adjust based on your sensor
+int distanceWet, distanceDry;
+int fullLevel = 5;    // 5 cm threshold for full bin
+
+// Function to get distance from ultrasonic sensor
+int getDistance(int trigPin, int echoPin) {
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+  long duration = pulseIn(echoPin, HIGH);
+  int distance = duration * 0.034 / 2; // cm
+  return distance;
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  pinMode(TRIG_WET, OUTPUT);
+  pinMode(ECHO_WET, INPUT);
+  pinMode(TRIG_DRY, OUTPUT);
+  pinMode(ECHO_DRY, INPUT);
+
+  pinMode(LED_WET_GREEN, OUTPUT);
+  pinMode(LED_WET_RED, OUTPUT);
+  pinMode(LED_DRY_GREEN, OUTPUT);
+  pinMode(LED_DRY_RED, OUTPUT);
+
+  flap.attach(SERVO_PIN);
+  flap.write(45);  // Neutral position
+}
+
+void loop() {
+  // --- Waste type detection ---
+  moistureValue = analogRead(MOISTURE_PIN);
+  Serial.print("Moisture Value: ");
+  Serial.println(moistureValue);
+
+  if (moistureValue > threshold) {
+    Serial.println("Wet waste detected → directing LEFT to WET bin");
+    flap.write(0);   // Left for wet waste
+    delay(1500);     // Simulate waste drop
+    flap.write(45);  // Return to neutral
+  } else {
+    Serial.println("Dry waste detected → directing RIGHT to DRY bin");
+    flap.write(90);  // Right for dry waste
+    delay(1500);
+    flap.write(45);  // Return to neutral
+  }
+
+  // --- Bin level detection ---
+  distanceWet = getDistance(TRIG_WET, ECHO_WET);
+  distanceDry = getDistance(TRIG_DRY, ECHO_DRY);
+
+  Serial.print("Wet Bin: ");
+  Serial.print(distanceWet);
+  Serial.print(" cm | Dry Bin: ");
+  Serial.println(distanceDry);
+
+  // Wet bin LEDs
+  if (distanceWet < fullLevel) {
+    digitalWrite(LED_WET_RED, HIGH);
+    digitalWrite(LED_WET_GREEN, LOW);
+  } else {
+    digitalWrite(LED_WET_RED, LOW);
+    digitalWrite(LED_WET_GREEN, HIGH);
+  }
+
+  // Dry bin LEDs
+  if (distanceDry < fullLevel) {
+    digitalWrite(LED_DRY_RED, HIGH);
+    digitalWrite(LED_DRY_GREEN, LOW);
+  } else {
+    digitalWrite(LED_DRY_RED, LOW);
+    digitalWrite(LED_DRY_GREEN, HIGH);
+  }
+
+  delay(2000);
+}
